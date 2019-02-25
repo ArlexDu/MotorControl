@@ -17,19 +17,22 @@ public class MessageManagement : MonoBehaviour
     public Parity parite = Parity.None;
     public int dataBits = 8;
     public StopBits stopbits = StopBits.One;
-    SerialPort port;
+    public Controller controller;
+    private SerialPort port;
     //  接受线程，处理线程
-    Thread portRev, portDeal;
-    Queue<string> dataQueue;
-    string outStr = string.Empty;
+    private Thread portRev, portDeal;
+    private Queue<byte> dataQueue;
+    private string outStr = string.Empty;
+    private int resultNum = 8;
 
     // Use this for initialization
     void Start()
     {
         Debug.Log("Start");
-        dataQueue = new Queue<string>();
+        dataQueue = new Queue<byte>();
         port = new SerialPort(portName, baudrate, parite, dataBits, stopbits);
-        port.ReadTimeout = 400;
+        //设定等待时间为4ms，若超过4ms则认为是下一帧数据
+        port.ReadTimeout = 4;
         try
         {
             if (!port.IsOpen)
@@ -72,44 +75,68 @@ public class MessageManagement : MonoBehaviour
             {
                 for (int i = 0; i < buf.Length; i++)
                 {
-                    resStr += buf[i].ToString("X2");
-                    dataQueue.Enqueue(resStr);
+                    //resStr += buf[i].ToString("X2");
+                    dataQueue.Enqueue(buf[i]);
                 }
             }
         }
         catch (System.Exception ex)
         {
-            Debug.Log(ex.Message);
+            if (dataQueue.Count > 0) {
+                if (!portDeal.IsAlive)
+                {
+                    portDeal = new Thread(DealData);
+                    portDeal.Start();
+                }
+            }
         }
     }
 
     //处理线程函数
     void DealData()
     {
-        while (dataQueue.Count != 0)
+        int num = dataQueue.Count;
+        byte[] results = new byte[num];
+        for (int i = 0; i < num; i++)
         {
-            for (int i = 0; i < dataQueue.Count; i++)
-            {
-                outStr += dataQueue.Dequeue();
-                if (outStr.Length == 2)
-                {
-                    /*if (outStr == "AB")
-                    {
-                        byte[] ba = new byte[10]; 
-                        for (int j = 0; j < 10; j++)
-                        {
-                            ba[j] = (byte)j;
-                        }
-                        SendData(ba);
-                    }*/
-                    Debug.Log(outStr);
-                    outStr = string.Empty;
-                }
-            }
+            byte result = dataQueue.Dequeue();
+            results[i] = result;
+        }
+        showInfo(results);
+        //分析电机的状态
+        if (num == 15) {
+            //转化需要byte低位在前高位在后
+            byte[] status = new byte[2];
+            status[0] = results[4];
+            status[1] = results[3];
+            int finalStatus = System.BitConverter.ToInt16(status, 0);
+            //Debug.Log(finalStatus);
+
+            byte[] speed = new byte[2];
+            speed[0] = results[6];
+            speed[1] = results[5];
+            int finalSpeed = System.BitConverter.ToInt16(speed, 0);
+            //Debug.Log(finalSpeed);
+
+            byte[] location = new byte[4];
+            location[0] = results[7];
+            location[1] = results[8];
+            location[2] = results[9];
+            location[3] = results[10];
+            int finalLocation = System.BitConverter.ToInt32(location, 0);
+            //Debug.Log(finalLocation);
+
+            byte[] mode = new byte[2];
+            mode[0] = results[12];
+            mode[1] = results[11];
+            int finalMode = System.BitConverter.ToInt16(mode, 0);
+            //Debug.Log(finalMode);
+
+            controller.updateStatusValue(finalStatus, finalSpeed, finalLocation, finalMode);
         }
     }
 
-    //发送数据
+    //发送数据 同时设置返回的指令数量 https://blog.csdn.net/yangbingzhou/article/details/39504015
     public void sendMessage(byte[] data)
     {
         if (port.IsOpen)
@@ -123,17 +150,11 @@ public class MessageManagement : MonoBehaviour
             // Update is called once per frame
     void Update()
     {
-        if (!portRev.IsAlive)
-        {
-            portRev = new Thread(PortReceivedThread); portRev.IsBackground = true;
+        if (!portRev.IsAlive) {
+            portRev = new Thread(PortReceivedThread);
+            portRev.IsBackground = true;
             portRev.Start();
         }
-        if (!portDeal.IsAlive)
-        {
-            portDeal = new Thread(DealData);
-            portDeal.Start();
-        }
-
     }
 
     void OnApplicationQuit()
@@ -158,7 +179,6 @@ public class MessageManagement : MonoBehaviour
         {
             info = info + b.ToString("X2") + " ";
         }
-
         Debug.Log(info);
     }
 

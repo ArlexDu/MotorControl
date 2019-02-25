@@ -10,8 +10,12 @@ public class Controller : MonoBehaviour {
 
     private Button btnSpeedPlusTime, btnSpeedMinusTime, btnSpeed, btnLocationPeriod, btnLocation, btnProperty, btnCycleIndex, btnWaitingTime,
         btnWaitingTimeUnit, btnStart, btnEnd, btnSave;
+
     private InputField inputSpeedPlusTime, inputSpeedMinusTime, inputSpeed, inputLocationPeriod, inputLocation, inputProperty, inputCycleIndex,
         inputWaitingTime, inputWaitingTimeUnit;
+
+    private Text showStatus, showSpeed, showLocation, showMode;
+
     public MessageManagement messageManagement;
 
     private Dropdown addressList;
@@ -21,8 +25,20 @@ public class Controller : MonoBehaviour {
     //地址字典
     private Dictionary<string, byte> addrs = new Dictionary<string, byte>();
 
-	// Use this for initialization
-	void Start () {
+    //状态字典
+    private Dictionary<int, string> status = new Dictionary<int, string>();
+
+    //模式字典
+    private Dictionary<int, string> modes = new Dictionary<int, string>();
+
+    private float interval = 0;
+
+    private bool sendingMessage;
+
+    private int currentStatus=8, currentSpeed=0, currentLocation=0, currentMode=1;
+
+    // Use this for initialization
+    void Start () {
         //初始化button
         btnSpeedPlusTime = GameObject.Find("speedPlusTimeApply").GetComponent<Button>();
         btnSpeedMinusTime = GameObject.Find("speedMinusTimeApply").GetComponent<Button>();
@@ -45,6 +61,12 @@ public class Controller : MonoBehaviour {
         inputWaitingTime = GameObject.Find("waitingTimeValue").GetComponent<InputField>();
         inputWaitingTimeUnit = GameObject.Find("waitingTimeUnitValue").GetComponent<InputField>();
 
+        //初始化状态
+        showStatus = GameObject.Find("engineStatusValue").GetComponent<Text>();
+        showSpeed = GameObject.Find("currentSpeedValue").GetComponent<Text>();
+        showLocation = GameObject.Find("currentLocationValue").GetComponent<Text>();
+        showMode = GameObject.Find("modeValue").GetComponent<Text>();
+
         //初始化功能按钮
         btnStart = GameObject.Find("start").GetComponent<Button>();
         btnEnd = GameObject.Find("end").GetComponent<Button>();
@@ -61,9 +83,25 @@ public class Controller : MonoBehaviour {
         addrs.Add("03", 0x03);
         addrs.Add("04", 0x04);
 
+        status.Add(6,"电机使能");
+        status.Add(7, "中点报错");
+        status.Add(8, "未接电机线");
+        status.Add(9, "欠压");
+        status.Add(10, "过压");
+        status.Add(11, "E2PROM 错误");
+        status.Add(14, "脱机，未使能");
+        status.Add(15, "过流");
+
+        modes.Add(1, "内部速度模式 ");
+        modes.Add(2, "周期位置模式");
+        modes.Add(3, "点到点位置模式");
+
+
         addressList = GameObject.Find("address").GetComponent<Dropdown>();
         updateDropDownItem();
         bindEvent();
+
+        sendingMessage = false;
 
     }
 
@@ -73,10 +111,10 @@ public class Controller : MonoBehaviour {
         btnStart.onClick.AddListener(startEngine);
         btnEnd.onClick.AddListener(endEngine);
         btnSpeedPlusTime.onClick.AddListener(setSpeedPlusTime);
-        btnSpeedPlusTime.onClick.AddListener(setSpeedMinusTime);
+        btnSpeedMinusTime.onClick.AddListener(setSpeedMinusTime);
         btnSpeed.onClick.AddListener(setSpeed);
         btnLocationPeriod.onClick.AddListener(setLocationPeriod);
-
+        btnLocation.onClick.AddListener(setLocation);
         btnProperty.onClick.AddListener(setLocationProperty);
         btnCycleIndex.onClick.AddListener(setCycleIndex);
         btnWaitingTime.onClick.AddListener(setWaitingTime);
@@ -90,8 +128,15 @@ public class Controller : MonoBehaviour {
 
     // Update is called once per frame
     void Update () {
+        //更新电机的状态
+        if (interval > 1) {
+            getEngineerStatus();
+            interval = 0;
+        }
+        updateStatus();
+        interval += Time.deltaTime;
 
-	}
+    }
 
     void OnApplicationQuit()
     {
@@ -170,6 +215,25 @@ public class Controller : MonoBehaviour {
         handleMsg(raw);
     }
 
+    //4 5 电机指令脉冲 增量式/绝对式脉冲数）开始运动 IO 线圈寄存器=OFF 或者外部IO（启动信号）光耦不导通时生效
+    private void setLocation()
+    {
+        byte addr = addrs[addressList.options[addressList.value].text];
+        byte[] msg = { addr, 0x10, 0x00, 0x04, 0x00, 0x02, 0x04 };
+        Debug.Log(inputLocation.name + " : " + inputLocation.text);
+        int value = int.Parse(inputLocation.text);
+        //基本上四位，因为int对应4byte
+        byte[] s = System.BitConverter.GetBytes(value);
+        Array.Reverse(s);
+        byte[] sp = new byte[4];
+        sp[0] = s[2];
+        sp[1] = s[3];
+        sp[2] = s[0];
+        sp[3] = s[1];
+        byte[] raw = messageManagement.combineArray(msg, sp);
+        handleMsg(raw);
+    }
+
 
     //设置周期性位置的周期 1-30000ms 默认=1，重新上电有效
     private void setLocationProperty()
@@ -240,6 +304,14 @@ public class Controller : MonoBehaviour {
         }
     }
 
+    //获得电机状态,当前速度,当前位置,当前模式
+    private void getEngineerStatus()
+    {
+        byte addr = addrs[addressList.options[addressList.value].text];
+        byte[] msg = { addr, 0x03, 0x00, 0xc8, 0x00, 0x05 };
+        handleMsg(msg);
+    }
+
     //获取InputFiled输入的值转化为byte数组
     private byte[] getParameterValue(InputField inputFiled) {
         Debug.Log(inputFiled.name+" : "+ inputFiled.text);
@@ -253,10 +325,26 @@ public class Controller : MonoBehaviour {
         return sp;
     }
 
+    //处理指令加入CRC校验，设置返回指令位数
     private void handleMsg(byte[] msg) {
         byte[] crc = messageManagement.CRCCalc(msg);
         byte[] data = messageManagement.combineArray(msg, crc);
         messageManagement.sendMessage(data);
+        sendingMessage = true;
     }
-
+    //更新电机状态
+    public void updateStatusValue(int status, int speed, int location, int mode)
+    {
+        currentStatus = status;
+        currentSpeed = speed;
+        currentLocation = location;
+        currentMode = mode;
+    }
+    //更新电机状态
+    public void updateStatus() {
+        showStatus.text = status[currentStatus];
+        showSpeed.text = Convert.ToString(currentSpeed);
+        showLocation.text = Convert.ToString(currentLocation);
+        showMode.text = modes[currentMode];
+    }
 }

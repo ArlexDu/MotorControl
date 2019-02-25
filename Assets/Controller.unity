@@ -227,6 +227,7 @@ MonoBehaviour:
   parite: 0
   dataBits: 8
   stopbits: 1
+  controller: {fileID: 22147239}
 --- !u!114 &22147239
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -9380,7 +9381,7 @@ MonoBehaviour:
     m_HorizontalOverflow: 0
     m_VerticalOverflow: 0
     m_LineSpacing: 1
-  m_Text: "0\uFF1A\u7EDD\u5BF9\u4F4D\u7F6E 1\uFF1A\u76F8\u5BF9\u4F4D\u7F6E"
+  m_Text: "0\uFF1A\u76F8\u5BF9\u4F4D\u7F6E 1\uFF1A\u7EDD\u5BF9\u4F4D\u7F6E"
 --- !u!222 &1842686000
 CanvasRenderer:
   m_ObjectHideFlags: 0
