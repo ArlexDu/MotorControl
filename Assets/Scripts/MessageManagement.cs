@@ -119,10 +119,10 @@ public class MessageManagement : MonoBehaviour
             //Debug.Log(finalSpeed);
 
             byte[] location = new byte[4];
-            location[0] = results[7];
-            location[1] = results[8];
-            location[2] = results[9];
-            location[3] = results[10];
+            location[0] = results[8];
+            location[1] = results[7];
+            location[2] = results[10];
+            location[3] = results[9];
             int finalLocation = System.BitConverter.ToInt32(location, 0);
             //Debug.Log(finalLocation);
 
