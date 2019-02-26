@@ -36,7 +36,9 @@ public class Controller : MonoBehaviour {
 
     private bool inited;
 
-    private int currentStatus=8, currentSpeed=0, currentLocation=0, currentMode=1;
+    public GameObject startImage, endImage;
+
+    private int currentAddress;
 
     // Use this for initialization
     void Start () {
@@ -53,7 +55,7 @@ public class Controller : MonoBehaviour {
 
         //初始化inputfiled
         inputSpeedPlusTime = GameObject.Find("speedPlusTimeValue").GetComponent<InputField>();
-        inputSpeedMinusTime = GameObject.Find("speedMinusTimeValue").GetComponent<InputField>();
+        inputSpeedMinusTime = GameObject.Find("speedMinusTimeValue" ).GetComponent<InputField>();
         inputSpeed = GameObject.Find("speedValue").GetComponent<InputField>();
         inputLocationPeriod = GameObject.Find("locationPeriodValue").GetComponent<InputField>();
         inputLocation = GameObject.Find("locationValue").GetComponent<InputField>();
@@ -102,10 +104,7 @@ public class Controller : MonoBehaviour {
         updateDropDownItem();
         bindEvent();
 
-        inited = false;
-
-        init();
-
+        changeEngine(0);
     }
 
     //初始化参数
@@ -113,6 +112,24 @@ public class Controller : MonoBehaviour {
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x03, 0x00, 0x03, 0x00, 0x0c };
+        handleMsg(msg);
+    }
+
+    //获得电机状态,当前速度,当前位置,当前模式
+    private void getEngineerStatus()
+    {
+        //Debug.Log("get Status");
+        byte addr = addrs[addressList.options[addressList.value].text];
+        byte[] msg = { addr, 0x03, 0x00, 0xc8, 0x00, 0x05 };
+        handleMsg(msg);
+    }
+
+    //获得线圈及寄存器状态 点击是否开启
+    private void geCoilStatus()
+    {
+        //Debug.Log("get Coil");
+        byte addr = addrs[addressList.options[addressList.value].text];
+        byte[] msg = { addr, 0x01, 0x00, 0x01, 0x00, 0x01 };
         handleMsg(msg);
     }
 
@@ -135,6 +152,8 @@ public class Controller : MonoBehaviour {
         speedMode.onValueChanged.AddListener((bool value) => setSpeedMode(value));
         locationMode.onValueChanged.AddListener((bool value) => setLocationMode(value));
         pointMode.onValueChanged.AddListener((bool value) => setPointMode(value));
+
+        addressList.onValueChanged.AddListener((int value) => changeEngine(value));
     }
 
     // Update is called once per frame
@@ -146,7 +165,6 @@ public class Controller : MonoBehaviour {
                 getEngineerStatus();
                 interval = 0;
             }
-            updateStatus();
             interval += Time.deltaTime;
         }
 
@@ -174,13 +192,35 @@ public class Controller : MonoBehaviour {
 
     }
 
+    //更改电机控制页面
+    private void changeEngine(int value) {
+
+        currentAddress = int.Parse(addressList.options[value].text);
+
+        inited = false;
+
+        //初始化参数
+        Invoke("init", 0.3f);
+
+        //获取状态寄存器数据
+        Invoke("getEngineerStatus", 1f);
+
+        //获取线圈寄存器状态
+        Invoke("geCoilStatus", 1.3f);
+
+        startImage.SetActive(false);
+        endImage.SetActive(true);
+    }
+
     //启动电机
     private void startEngine()
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x05, 0x00, 0x01, 0xff, 0x00 };
         handleMsg(msg);
-        moveController.run = true;
+        moveController.setCoilStatus(currentAddress, true);
+        startImage.SetActive(true);
+        endImage.SetActive(false);
     }
 
     //停止电机
@@ -189,7 +229,9 @@ public class Controller : MonoBehaviour {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x05, 0x00, 0x01, 0x00, 0x00 };
         handleMsg(msg);
-        moveController.run = false;
+        moveController.setCoilStatus(currentAddress, false);
+        startImage.SetActive(false);
+        endImage.SetActive(true);
     }
 
     //设置加速到指定位置的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -200,7 +242,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeedPlusTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeedPlusTime(int.Parse(addressList.options[addressList.value].text), int.Parse(inputSpeedPlusTime.text));
+        moveController.setSpeedPlusTime(currentAddress, int.Parse(inputSpeedPlusTime.text));
     }
 
     //设置减速到指定速度的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -211,7 +253,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeedMinusTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeedMinusTime(int.Parse(addressList.options[addressList.value].text), int.Parse(inputSpeedMinusTime.text));
+        moveController.setSpeedMinusTime(currentAddress, int.Parse(inputSpeedMinusTime.text));
     }
 
     //设置转速 速度模式：速度值随时生效点到点位置模式：开始运动 IO 线圈寄存器 = OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -222,7 +264,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeed);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeed(int.Parse(addressList.options[addressList.value].text), int.Parse(inputSpeed.text));
+        moveController.setSpeed(currentAddress, int.Parse(inputSpeed.text));
     }
 
     //设置周期性位置的周期  默认=1，重新上电有效
@@ -232,7 +274,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputLocationPeriod);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setLocationPeriod(int.Parse(addressList.options[addressList.value].text), int.Parse(inputLocationPeriod.text));
+        moveController.setLocationPeriod(currentAddress, int.Parse(inputLocationPeriod.text));
     }
 
     //4 5 电机指令脉冲 增量式/绝对式脉冲数）开始运动 IO 线圈寄存器=OFF 或者外部IO（启动信号）光耦不导通时生效
@@ -252,7 +294,7 @@ public class Controller : MonoBehaviour {
         sp[3] = s[1];
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setLocation(int.Parse(addressList.options[addressList.value].text), int.Parse(inputLocation.text));
+        moveController.setTarget(currentAddress, int.Parse(inputLocation.text));
     }
 
 
@@ -264,7 +306,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputLocationProperty);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setLocationProperty(int.Parse(addressList.options[addressList.value].text), int.Parse(inputLocationProperty.text));
+        moveController.setLocationProperty(currentAddress, int.Parse(inputLocationProperty.text));
     }
 
     //运动循环命令次数 0-30000 随时生效
@@ -275,7 +317,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputCycleIndex);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setCycleIndex(int.Parse(addressList.options[addressList.value].text), int.Parse(inputCycleIndex.text));
+        moveController.setCycleIndex(currentAddress, int.Parse(inputCycleIndex.text));
     }
 
     //运动循环等待时间 0-30000（单位根据寄存器12 确定） 随时生效
@@ -286,7 +328,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputWaitingTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setWaitingTime(int.Parse(addressList.options[addressList.value].text), int.Parse(inputWaitingTime.text));
+        moveController.setWaitingTime(currentAddress, int.Parse(inputWaitingTime.text));
     }
 
     //等待时间单位 0：ms 1：s 重新上电有效
@@ -297,7 +339,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputWaitingTimeUnit);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setWaitingTimeUnit(int.Parse(addressList.options[addressList.value].text), int.Parse(inputWaitingTimeUnit.text));
+        moveController.setWaitingTimeUnit(currentAddress, int.Parse(inputWaitingTimeUnit.text));
     }
 
     //设置为速度模式
@@ -306,6 +348,7 @@ public class Controller : MonoBehaviour {
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x01 };
             handleMsg(msg);
+            moveController.setMode(1);
         }
     }
     
@@ -316,6 +359,7 @@ public class Controller : MonoBehaviour {
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x02 };
             handleMsg(msg);
+            moveController.setMode(2);
         }
     }
 
@@ -326,15 +370,8 @@ public class Controller : MonoBehaviour {
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x03 };
             handleMsg(msg);
+            moveController.setMode(3);
         }
-    }
-
-    //获得电机状态,当前速度,当前位置,当前模式
-    private void getEngineerStatus()
-    {
-        byte addr = addrs[addressList.options[addressList.value].text];
-        byte[] msg = { addr, 0x03, 0x00, 0xc8, 0x00, 0x05 };
-        handleMsg(msg);
     }
 
     //获取InputFiled输入的值转化为byte数组
@@ -357,20 +394,11 @@ public class Controller : MonoBehaviour {
         messageManagement.sendMessage(data);
     }
 
-    //更新电机状态
-    public void updateStatusValue(int status, int speed, int location, int mode)
-    {
-        currentStatus = status;
-        currentSpeed = speed;
-        currentLocation = location;
-        currentMode = mode;
-    }
-
     //得到电机的初始化状态
     public void initSphereParameters(moveSphere sphere)
     {
         //初始化页面参数
-        /*inputSpeedPlusTime.text  = sphere.speedPlusTime.ToString();
+        inputSpeedPlusTime.text  = sphere.speedPlusTime.ToString();
         inputSpeedMinusTime.text = sphere.speedMinusTime.ToString();
         inputSpeed.text = sphere.speed.ToString();
         inputLocationPeriod.text = sphere.locationPeriod.ToString();
@@ -378,7 +406,7 @@ public class Controller : MonoBehaviour {
         inputLocationProperty.text = sphere.locationProperty.ToString();
         inputCycleIndex.text = sphere.cycleIndex.ToString();
         inputWaitingTime.text = sphere.waitingTime.ToString();
-        inputWaitingTimeUnit.text = sphere.waitingTimeUnit.ToString();*/
+        inputWaitingTimeUnit.text = sphere.waitingTimeUnit.ToString();
         //更新动画小球参数
         moveController.setSpeedPlusTime(sphere.address, sphere.speedPlusTime);
         moveController.setSpeedMinusTime(sphere.address, sphere.speedMinusTime);
@@ -389,14 +417,53 @@ public class Controller : MonoBehaviour {
         moveController.setCycleIndex(sphere.address, sphere.cycleIndex);
         moveController.setWaitingTime(sphere.address, sphere.waitingTime);
         moveController.setWaitingTimeUnit(sphere.address, sphere.waitingTimeUnit);
-        inited = true;
     }
 
     //更新电机状态
-    public void updateStatus() {
-        showStatus.text = status[currentStatus];
-        showSpeed.text = Convert.ToString(currentSpeed);
-        showLocation.text = Convert.ToString(currentLocation);
-        showMode.text = modes[currentMode];
+    public void updateStatusValue(int type, int speed, int location, int mode)
+    {
+        showStatus.text = status[type];
+        showSpeed.text = Convert.ToString(speed);
+        showLocation.text = Convert.ToString(location);
+        showMode.text = modes[mode];
+        switch(mode){
+            case 1:
+                speedMode.isOn = true;
+                locationMode.isOn = false;
+                pointMode.isOn = false;
+                break;
+            case 2:
+                speedMode.isOn = false;
+                locationMode.isOn = true;
+                pointMode.isOn = false;
+                break;
+            case 3:
+                speedMode.isOn = false;
+                locationMode.isOn = false;
+                pointMode.isOn = true;
+                break;
+        }
+    }
+
+    //更新电机状态
+    public void updateCoilStatus(int addr, bool run)
+    {
+        moveController.setCoilStatus(addr, run);
+
+        //更新页面显示
+        if (currentAddress == addr)
+        {
+            if (run) {
+                startImage.SetActive(true);
+                endImage.SetActive(false);
+            }
+            else
+            {
+                startImage.SetActive(false);
+                endImage.SetActive(true);
+            }
+        }
+        
+        inited = true;
     }
 }

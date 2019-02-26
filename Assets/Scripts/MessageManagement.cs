@@ -48,6 +48,7 @@ public class MessageManagement : MonoBehaviour
             portRev.IsBackground = true;
             portRev.Start();
             portDeal = new Thread(DealData);
+            Loom.Initialize();
         }
         catch (System.Exception ex)
         {
@@ -101,16 +102,31 @@ public class MessageManagement : MonoBehaviour
             byte result = dataQueue.Dequeue();
             results[i] = result;
         }
-        //showInfo(results);
+        showInfo(results);
         switch(num){
+            case 6://获取线圈寄存器的状态
+                byte runbyte = results[3];
+                byte[] addr = new byte[2];
+                addr[0] = results[0];
+                addr[1] = 0x00;
+                int address = System.BitConverter.ToInt16(addr, 0);
+                bool run = runbyte == 0x01 ? true : false; 
+                Loom.QueueOnMainThread((param) =>
+                {
+                    controller.updateCoilStatus(address,run);
+                }, null);
+                break;
             case 15://实时分析电机的状态        
                 int currStatus = getFinalValue(results,new int[] { 4, 3 });
                 int currSpeed = getFinalValue(results, new int[] { 6, 5 });
                 int currLocation = getFinalValue(results, new int[] { 8, 7, 10, 9 });
                 int currMode = getFinalValue(results, new int[] { 12, 11 });
-                controller.updateStatusValue(currStatus, currSpeed, currLocation, currMode);
+                Loom.QueueOnMainThread((param) =>
+                {
+                    controller.updateStatusValue(currStatus, currSpeed, currLocation, currMode);
+                }, null);
                 break;
-            case 29:
+            case 29://获取命令寄存器的状态
                 moveSphere sphere = new moveSphere();
                 sphere.speed = getFinalValue(results, new int[] { 4, 3 });
                 sphere.location = getFinalValue(results, new int[] { 6, 5, 8, 7 });
@@ -122,7 +138,11 @@ public class MessageManagement : MonoBehaviour
                 sphere.waitingTimeUnit = getFinalValue(results, new int[] { 22, 21 });
                 sphere.locationProperty = getFinalValue(results, new int[] { 24, 23 });
                 sphere.locationPeriod = getFinalValue(results, new int[] { 26, 25 });
-                controller.initSphereParameters(sphere);
+                Loom.QueueOnMainThread((param) =>
+                {
+                    controller.initSphereParameters(sphere);
+                }, null);
+                
                 break;
 
         }
@@ -234,5 +254,4 @@ public class MessageManagement : MonoBehaviour
         crcFinal[0] = (byte)(crc & 0xff);
         return crcFinal;
     }
-
 }

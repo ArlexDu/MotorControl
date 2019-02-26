@@ -6,10 +6,12 @@ public class moveSphere{
     public moveSphere(){}
     public string name;
     public Transform sphere;
+    //是否开机
+    public bool run;
     //电机编号
     public int address;
-    //原始位置
-    public float origin;
+    //目标位置
+    public float target;
     //零速加速到指定速度的时间 (ms)
     public int speedPlusTime;
     //指定速度减速到零速的时间 (ms)
