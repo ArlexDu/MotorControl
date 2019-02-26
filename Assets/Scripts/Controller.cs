@@ -38,7 +38,7 @@ public class Controller : MonoBehaviour {
 
     public GameObject startImage, endImage;
 
-    private int currentAddress;
+    private int currentAddress=1;
 
     // Use this for initialization
     void Start () {
@@ -99,12 +99,24 @@ public class Controller : MonoBehaviour {
         modes.Add(2, "周期位置模式");
         modes.Add(3, "点到点位置模式");
 
+        updateButtonStatus(false);
 
         addressList = GameObject.Find("address").GetComponent<Dropdown>();
         updateDropDownItem();
         bindEvent();
-
         changeEngine(0);
+    }
+
+    private void updateButtonStatus(bool status) {
+        btnSpeedPlusTime.interactable = status;
+        btnSpeedMinusTime.interactable = status;
+        btnSpeed.interactable = status;
+        btnLocationPeriod.interactable = status;
+        btnLocation.interactable = status;
+        btnLocationProperty.interactable = status;
+        btnCycleIndex.interactable = status;
+        btnWaitingTime.interactable = status;
+        btnWaitingTimeUnit.interactable = status;
     }
 
     //初始化参数
@@ -127,7 +139,7 @@ public class Controller : MonoBehaviour {
     //获得线圈及寄存器状态 点击是否开启
     private void geCoilStatus()
     {
-        //Debug.Log("get Coil");
+        Debug.Log("get Coil");
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x01, 0x00, 0x01, 0x00, 0x01 };
         handleMsg(msg);
@@ -160,7 +172,7 @@ public class Controller : MonoBehaviour {
     void Update () {
         //更新电机的状态
         if (inited) {
-            if (interval > 0.5)
+            if (interval > 0.3)
             {
                 getEngineerStatus();
                 interval = 0;
@@ -172,7 +184,7 @@ public class Controller : MonoBehaviour {
 
     void OnApplicationQuit()
     {
-
+        endEngine();
     }
 
     //初始化电机选择地址列表
@@ -195,7 +207,9 @@ public class Controller : MonoBehaviour {
     //更改电机控制页面
     private void changeEngine(int value) {
 
+        moveController.changeSphereColor(currentAddress, false);
         currentAddress = int.Parse(addressList.options[value].text);
+        moveController.changeSphereColor(currentAddress, true);
 
         inited = false;
 
@@ -210,6 +224,8 @@ public class Controller : MonoBehaviour {
 
         startImage.SetActive(false);
         endImage.SetActive(true);
+
+
     }
 
     //启动电机
@@ -221,6 +237,7 @@ public class Controller : MonoBehaviour {
         moveController.setCoilStatus(currentAddress, true);
         startImage.SetActive(true);
         endImage.SetActive(false);
+        updateButtonStatus(true);
     }
 
     //停止电机
@@ -232,6 +249,7 @@ public class Controller : MonoBehaviour {
         moveController.setCoilStatus(currentAddress, false);
         startImage.SetActive(false);
         endImage.SetActive(true);
+        updateButtonStatus(false);
     }
 
     //设置加速到指定位置的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -348,7 +366,7 @@ public class Controller : MonoBehaviour {
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x01 };
             handleMsg(msg);
-            moveController.setMode(1);
+            moveController.setMode(currentAddress,1);
         }
     }
     
@@ -359,7 +377,7 @@ public class Controller : MonoBehaviour {
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x02 };
             handleMsg(msg);
-            moveController.setMode(2);
+            moveController.setMode(currentAddress, 2);
         }
     }
 
@@ -370,7 +388,7 @@ public class Controller : MonoBehaviour {
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x03 };
             handleMsg(msg);
-            moveController.setMode(3);
+            moveController.setMode(currentAddress, 3);
         }
     }
 
@@ -426,7 +444,8 @@ public class Controller : MonoBehaviour {
         showSpeed.text = Convert.ToString(speed);
         showLocation.text = Convert.ToString(location);
         showMode.text = modes[mode];
-        switch(mode){
+        moveController.setMode(currentAddress, mode);
+        switch (mode){
             case 1:
                 speedMode.isOn = true;
                 locationMode.isOn = false;

@@ -30,5 +30,9 @@ public class moveSphere{
     public int waitingTime;
     //等待时间单位 ms/s
     public int waitingTimeUnit;
+    //运动模式 1：速度 2：位置 3：点到点
+    public int mode;
+    //电机当前速度 (m/s)
+    public float currentSpeed;
 
 }
