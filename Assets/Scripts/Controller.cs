@@ -8,15 +8,16 @@ using UnityEngine.UI;
 
 public class Controller : MonoBehaviour {
 
-    private Button btnSpeedPlusTime, btnSpeedMinusTime, btnSpeed, btnLocationPeriod, btnLocation, btnProperty, btnCycleIndex, btnWaitingTime,
+    private Button btnSpeedPlusTime, btnSpeedMinusTime, btnSpeed, btnLocationPeriod, btnLocation, btnLocationProperty, btnCycleIndex, btnWaitingTime,
         btnWaitingTimeUnit, btnStart, btnEnd, btnSave;
 
-    private InputField inputSpeedPlusTime, inputSpeedMinusTime, inputSpeed, inputLocationPeriod, inputLocation, inputProperty, inputCycleIndex,
+    private InputField inputSpeedPlusTime, inputSpeedMinusTime, inputSpeed, inputLocationPeriod, inputLocation, inputLocationProperty, inputCycleIndex,
         inputWaitingTime, inputWaitingTimeUnit;
 
     private Text showStatus, showSpeed, showLocation, showMode;
 
     public MessageManagement messageManagement;
+    public MoveController moveController;
 
     private Dropdown addressList;
 
@@ -33,7 +34,7 @@ public class Controller : MonoBehaviour {
 
     private float interval = 0;
 
-    private bool sendingMessage;
+    private bool inited;
 
     private int currentStatus=8, currentSpeed=0, currentLocation=0, currentMode=1;
 
@@ -45,7 +46,7 @@ public class Controller : MonoBehaviour {
         btnSpeed = GameObject.Find("speedApply").GetComponent<Button>();
         btnLocationPeriod = GameObject.Find("locationPeriodApply").GetComponent<Button>();
         btnLocation = GameObject.Find("locationApply").GetComponent<Button>();
-        btnProperty = GameObject.Find("propertyApply").GetComponent<Button>();
+        btnLocationProperty = GameObject.Find("locationPropertyApply").GetComponent<Button>();
         btnCycleIndex = GameObject.Find("cycleIndexApply").GetComponent<Button>();
         btnWaitingTime = GameObject.Find("waitingTimeApply").GetComponent<Button>();
         btnWaitingTimeUnit = GameObject.Find("waitingTimeUnitApply").GetComponent<Button>();
@@ -56,7 +57,7 @@ public class Controller : MonoBehaviour {
         inputSpeed = GameObject.Find("speedValue").GetComponent<InputField>();
         inputLocationPeriod = GameObject.Find("locationPeriodValue").GetComponent<InputField>();
         inputLocation = GameObject.Find("locationValue").GetComponent<InputField>();
-        inputProperty = GameObject.Find("propertyValue").GetComponent<InputField>();
+        inputLocationProperty = GameObject.Find("locationPropertyValue").GetComponent<InputField>();
         inputCycleIndex = GameObject.Find("cycleIndexValue").GetComponent<InputField>();
         inputWaitingTime = GameObject.Find("waitingTimeValue").GetComponent<InputField>();
         inputWaitingTimeUnit = GameObject.Find("waitingTimeUnitValue").GetComponent<InputField>();
@@ -101,8 +102,18 @@ public class Controller : MonoBehaviour {
         updateDropDownItem();
         bindEvent();
 
-        sendingMessage = false;
+        inited = false;
 
+        init();
+
+    }
+
+    //初始化参数
+    private void init()
+    {
+        byte addr = addrs[addressList.options[addressList.value].text];
+        byte[] msg = { addr, 0x03, 0x00, 0x03, 0x00, 0x0c };
+        handleMsg(msg);
     }
 
     //绑定点击事件
@@ -115,7 +126,7 @@ public class Controller : MonoBehaviour {
         btnSpeed.onClick.AddListener(setSpeed);
         btnLocationPeriod.onClick.AddListener(setLocationPeriod);
         btnLocation.onClick.AddListener(setLocation);
-        btnProperty.onClick.AddListener(setLocationProperty);
+        btnLocationProperty.onClick.AddListener(setLocationProperty);
         btnCycleIndex.onClick.AddListener(setCycleIndex);
         btnWaitingTime.onClick.AddListener(setWaitingTime);
         btnWaitingTimeUnit.onClick.AddListener(setWaitingTimeUnit);
@@ -129,12 +140,15 @@ public class Controller : MonoBehaviour {
     // Update is called once per frame
     void Update () {
         //更新电机的状态
-        if (interval > 1) {
-            getEngineerStatus();
-            interval = 0;
+        if (inited) {
+            if (interval > 0.5)
+            {
+                getEngineerStatus();
+                interval = 0;
+            }
+            updateStatus();
+            interval += Time.deltaTime;
         }
-        updateStatus();
-        interval += Time.deltaTime;
 
     }
 
@@ -166,6 +180,7 @@ public class Controller : MonoBehaviour {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x05, 0x00, 0x01, 0xff, 0x00 };
         handleMsg(msg);
+        moveController.run = true;
     }
 
     //停止电机
@@ -174,6 +189,7 @@ public class Controller : MonoBehaviour {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x05, 0x00, 0x01, 0x00, 0x00 };
         handleMsg(msg);
+        moveController.run = false;
     }
 
     //设置加速到指定位置的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -184,6 +200,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeedPlusTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setSpeedPlusTime(int.Parse(addressList.options[addressList.value].text), int.Parse(inputSpeedPlusTime.text));
     }
 
     //设置减速到指定速度的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -194,6 +211,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeedMinusTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setSpeedMinusTime(int.Parse(addressList.options[addressList.value].text), int.Parse(inputSpeedMinusTime.text));
     }
 
     //设置转速 速度模式：速度值随时生效点到点位置模式：开始运动 IO 线圈寄存器 = OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -204,6 +222,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeed);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setSpeed(int.Parse(addressList.options[addressList.value].text), int.Parse(inputSpeed.text));
     }
 
     //设置周期性位置的周期  默认=1，重新上电有效
@@ -213,6 +232,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputLocationPeriod);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setLocationPeriod(int.Parse(addressList.options[addressList.value].text), int.Parse(inputLocationPeriod.text));
     }
 
     //4 5 电机指令脉冲 增量式/绝对式脉冲数）开始运动 IO 线圈寄存器=OFF 或者外部IO（启动信号）光耦不导通时生效
@@ -232,6 +252,7 @@ public class Controller : MonoBehaviour {
         sp[3] = s[1];
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setLocation(int.Parse(addressList.options[addressList.value].text), int.Parse(inputLocation.text));
     }
 
 
@@ -240,9 +261,10 @@ public class Controller : MonoBehaviour {
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x06, 0x00, 0x0d };
-        byte[] sp = getParameterValue(inputProperty);
+        byte[] sp = getParameterValue(inputLocationProperty);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setLocationProperty(int.Parse(addressList.options[addressList.value].text), int.Parse(inputLocationProperty.text));
     }
 
     //运动循环命令次数 0-30000 随时生效
@@ -253,6 +275,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputCycleIndex);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setCycleIndex(int.Parse(addressList.options[addressList.value].text), int.Parse(inputCycleIndex.text));
     }
 
     //运动循环等待时间 0-30000（单位根据寄存器12 确定） 随时生效
@@ -263,6 +286,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputWaitingTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setWaitingTime(int.Parse(addressList.options[addressList.value].text), int.Parse(inputWaitingTime.text));
     }
 
     //等待时间单位 0：ms 1：s 重新上电有效
@@ -273,6 +297,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputWaitingTimeUnit);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
+        moveController.setWaitingTimeUnit(int.Parse(addressList.options[addressList.value].text), int.Parse(inputWaitingTimeUnit.text));
     }
 
     //设置为速度模式
@@ -330,8 +355,8 @@ public class Controller : MonoBehaviour {
         byte[] crc = messageManagement.CRCCalc(msg);
         byte[] data = messageManagement.combineArray(msg, crc);
         messageManagement.sendMessage(data);
-        sendingMessage = true;
     }
+
     //更新电机状态
     public void updateStatusValue(int status, int speed, int location, int mode)
     {
@@ -340,6 +365,33 @@ public class Controller : MonoBehaviour {
         currentLocation = location;
         currentMode = mode;
     }
+
+    //得到电机的初始化状态
+    public void initSphereParameters(moveSphere sphere)
+    {
+        //初始化页面参数
+        /*inputSpeedPlusTime.text  = sphere.speedPlusTime.ToString();
+        inputSpeedMinusTime.text = sphere.speedMinusTime.ToString();
+        inputSpeed.text = sphere.speed.ToString();
+        inputLocationPeriod.text = sphere.locationPeriod.ToString();
+        inputLocation.text = sphere.location.ToString();
+        inputLocationProperty.text = sphere.locationProperty.ToString();
+        inputCycleIndex.text = sphere.cycleIndex.ToString();
+        inputWaitingTime.text = sphere.waitingTime.ToString();
+        inputWaitingTimeUnit.text = sphere.waitingTimeUnit.ToString();*/
+        //更新动画小球参数
+        moveController.setSpeedPlusTime(sphere.address, sphere.speedPlusTime);
+        moveController.setSpeedMinusTime(sphere.address, sphere.speedMinusTime);
+        moveController.setSpeed(sphere.address, (int)sphere.speed);
+        moveController.setLocationPeriod(sphere.address, sphere.locationPeriod);
+        moveController.setLocationProperty(sphere.address, sphere.locationProperty);
+        moveController.setLocation(sphere.address, (int)sphere.location);
+        moveController.setCycleIndex(sphere.address, sphere.cycleIndex);
+        moveController.setWaitingTime(sphere.address, sphere.waitingTime);
+        moveController.setWaitingTimeUnit(sphere.address, sphere.waitingTimeUnit);
+        inited = true;
+    }
+
     //更新电机状态
     public void updateStatus() {
         showStatus.text = status[currentStatus];

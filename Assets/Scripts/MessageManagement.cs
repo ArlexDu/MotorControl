@@ -48,7 +48,6 @@ public class MessageManagement : MonoBehaviour
             portRev.IsBackground = true;
             portRev.Start();
             portDeal = new Thread(DealData);
-            portDeal.Start();
         }
         catch (System.Exception ex)
         {
@@ -102,38 +101,53 @@ public class MessageManagement : MonoBehaviour
             byte result = dataQueue.Dequeue();
             results[i] = result;
         }
-        showInfo(results);
-        //分析电机的状态
-        if (num == 15) {
-            //转化需要byte低位在前高位在后
-            byte[] status = new byte[2];
-            status[0] = results[4];
-            status[1] = results[3];
-            int finalStatus = System.BitConverter.ToInt16(status, 0);
-            //Debug.Log(finalStatus);
+        //showInfo(results);
+        switch(num){
+            case 15://实时分析电机的状态        
+                int currStatus = getFinalValue(results,new int[] { 4, 3 });
+                int currSpeed = getFinalValue(results, new int[] { 6, 5 });
+                int currLocation = getFinalValue(results, new int[] { 8, 7, 10, 9 });
+                int currMode = getFinalValue(results, new int[] { 12, 11 });
+                controller.updateStatusValue(currStatus, currSpeed, currLocation, currMode);
+                break;
+            case 29:
+                moveSphere sphere = new moveSphere();
+                sphere.speed = getFinalValue(results, new int[] { 4, 3 });
+                sphere.location = getFinalValue(results, new int[] { 6, 5, 8, 7 });
+                sphere.speedPlusTime = getFinalValue(results, new int[] { 10, 9 });
+                sphere.speedMinusTime = getFinalValue(results, new int[] { 12, 11 });
+                sphere.cycleIndex = getFinalValue(results, new int[] { 14, 13 });
+                sphere.waitingTime = getFinalValue(results, new int[] { 16, 15 });
+                sphere.address = getFinalValue(results, new int[] { 18,17 });
+                sphere.waitingTimeUnit = getFinalValue(results, new int[] { 22, 21 });
+                sphere.locationProperty = getFinalValue(results, new int[] { 24, 23 });
+                sphere.locationPeriod = getFinalValue(results, new int[] { 26, 25 });
+                controller.initSphereParameters(sphere);
+                break;
 
-            byte[] speed = new byte[2];
-            speed[0] = results[6];
-            speed[1] = results[5];
-            int finalSpeed = System.BitConverter.ToInt16(speed, 0);
-            //Debug.Log(finalSpeed);
-
-            byte[] location = new byte[4];
-            location[0] = results[8];
-            location[1] = results[7];
-            location[2] = results[10];
-            location[3] = results[9];
-            int finalLocation = System.BitConverter.ToInt32(location, 0);
-            //Debug.Log(finalLocation);
-
-            byte[] mode = new byte[2];
-            mode[0] = results[12];
-            mode[1] = results[11];
-            int finalMode = System.BitConverter.ToInt16(mode, 0);
-            //Debug.Log(finalMode);
-
-            controller.updateStatusValue(finalStatus, finalSpeed, finalLocation, finalMode);
         }
+        
+    }
+
+    //解析串口返回数据
+    private int getFinalValue(byte[] raw, int[] index) {
+        int num = index.Length;
+        byte[] b = new byte[num];
+        int finalValue = 0;
+        for (int i = 0; i < num; i++) {
+            b[i] = raw[index[i]];
+        }
+        switch (num)
+        {//转化需要byte低位在前高位在后
+            case 2:
+                finalValue = System.BitConverter.ToInt16(b, 0);
+                break;
+            case 4:
+                finalValue = System.BitConverter.ToInt32(b, 0);
+                break;
+        }
+        //Debug.Log(finalValue);
+        return finalValue;
     }
 
     //发送数据 同时设置返回的指令数量 https://blog.csdn.net/yangbingzhou/article/details/39504015
@@ -142,7 +156,7 @@ public class MessageManagement : MonoBehaviour
         if (port.IsOpen)
         {
             port.Write(data, 0, data.Length);
-            showInfo(data);
+            //showInfo(data);
         }
     }
 
