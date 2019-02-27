@@ -8,11 +8,9 @@ using UnityEngine.UI;
 
 public class Controller : MonoBehaviour {
 
-    private Button btnSpeedPlusTime, btnSpeedMinusTime, btnSpeed, btnLocationPeriod, btnLocation, btnLocationProperty, btnCycleIndex, btnWaitingTime,
-        btnWaitingTimeUnit, btnStart, btnEnd, btnSave;
+    private Button btnSpeedChangeTime, btnSpeed, btnLocation, btnLocationProperty, btnStart, btnEnd, btnSave;
 
-    private InputField inputSpeedPlusTime, inputSpeedMinusTime, inputSpeed, inputLocationPeriod, inputLocation, inputLocationProperty, inputCycleIndex,
-        inputWaitingTime, inputWaitingTimeUnit;
+    private InputField inputSpeedChangeTime, inputSpeed, inputLocation, inputLocationProperty;
 
     private Text showStatus, showSpeed, showLocation, showMode;
 
@@ -20,8 +18,6 @@ public class Controller : MonoBehaviour {
     public MoveController moveController;
 
     private Dropdown addressList;
-
-    private Toggle speedMode, locationMode, pointMode;
 
     //地址字典
     private Dictionary<string, byte> addrs = new Dictionary<string, byte>();
@@ -43,26 +39,16 @@ public class Controller : MonoBehaviour {
     // Use this for initialization
     void Start () {
         //初始化button
-        btnSpeedPlusTime = GameObject.Find("speedPlusTimeApply").GetComponent<Button>();
-        btnSpeedMinusTime = GameObject.Find("speedMinusTimeApply").GetComponent<Button>();
+        btnSpeedChangeTime = GameObject.Find("speedChangeTimeApply").GetComponent<Button>();
         btnSpeed = GameObject.Find("speedApply").GetComponent<Button>();
-        btnLocationPeriod = GameObject.Find("locationPeriodApply").GetComponent<Button>();
         btnLocation = GameObject.Find("locationApply").GetComponent<Button>();
         btnLocationProperty = GameObject.Find("locationPropertyApply").GetComponent<Button>();
-        btnCycleIndex = GameObject.Find("cycleIndexApply").GetComponent<Button>();
-        btnWaitingTime = GameObject.Find("waitingTimeApply").GetComponent<Button>();
-        btnWaitingTimeUnit = GameObject.Find("waitingTimeUnitApply").GetComponent<Button>();
 
         //初始化inputfiled
-        inputSpeedPlusTime = GameObject.Find("speedPlusTimeValue").GetComponent<InputField>();
-        inputSpeedMinusTime = GameObject.Find("speedMinusTimeValue" ).GetComponent<InputField>();
+        inputSpeedChangeTime = GameObject.Find("speedChangeTimeValue").GetComponent<InputField>();
         inputSpeed = GameObject.Find("speedValue").GetComponent<InputField>();
-        inputLocationPeriod = GameObject.Find("locationPeriodValue").GetComponent<InputField>();
         inputLocation = GameObject.Find("locationValue").GetComponent<InputField>();
         inputLocationProperty = GameObject.Find("locationPropertyValue").GetComponent<InputField>();
-        inputCycleIndex = GameObject.Find("cycleIndexValue").GetComponent<InputField>();
-        inputWaitingTime = GameObject.Find("waitingTimeValue").GetComponent<InputField>();
-        inputWaitingTimeUnit = GameObject.Find("waitingTimeUnitValue").GetComponent<InputField>();
 
         //初始化状态
         showStatus = GameObject.Find("engineStatusValue").GetComponent<Text>();
@@ -74,11 +60,6 @@ public class Controller : MonoBehaviour {
         btnStart = GameObject.Find("start").GetComponent<Button>();
         btnEnd = GameObject.Find("end").GetComponent<Button>();
         btnSave = GameObject.Find("save").GetComponent<Button>();
-
-        //初始化模式选择框
-        speedMode = GameObject.Find("speedMode").GetComponent<Toggle>();
-        locationMode = GameObject.Find("locationMode").GetComponent<Toggle>();
-        pointMode = GameObject.Find("pointMode").GetComponent<Toggle>();
 
         //初始化地址字典
         addrs.Add("01", 0x01);
@@ -108,15 +89,10 @@ public class Controller : MonoBehaviour {
     }
 
     private void updateButtonStatus(bool status) {
-        btnSpeedPlusTime.interactable = status;
-        btnSpeedMinusTime.interactable = status;
+        btnSpeedChangeTime.interactable = status;
         btnSpeed.interactable = status;
-        btnLocationPeriod.interactable = status;
         btnLocation.interactable = status;
         btnLocationProperty.interactable = status;
-        btnCycleIndex.interactable = status;
-        btnWaitingTime.interactable = status;
-        btnWaitingTimeUnit.interactable = status;
     }
 
     //初始化参数
@@ -151,21 +127,10 @@ public class Controller : MonoBehaviour {
     {
         btnStart.onClick.AddListener(startEngine);
         btnEnd.onClick.AddListener(endEngine);
-        btnSpeedPlusTime.onClick.AddListener(setSpeedPlusTime);
-        btnSpeedMinusTime.onClick.AddListener(setSpeedMinusTime);
+        btnSpeedChangeTime.onClick.AddListener(setSpeedChangeTime);
         btnSpeed.onClick.AddListener(setSpeed);
-        btnLocationPeriod.onClick.AddListener(setLocationPeriod);
         btnLocation.onClick.AddListener(setLocation);
         btnLocationProperty.onClick.AddListener(setLocationProperty);
-        btnCycleIndex.onClick.AddListener(setCycleIndex);
-        btnWaitingTime.onClick.AddListener(setWaitingTime);
-        btnWaitingTimeUnit.onClick.AddListener(setWaitingTimeUnit);
-
-
-        speedMode.onValueChanged.AddListener((bool value) => setSpeedMode(value));
-        locationMode.onValueChanged.AddListener((bool value) => setLocationMode(value));
-        pointMode.onValueChanged.AddListener((bool value) => setPointMode(value));
-
         addressList.onValueChanged.AddListener((int value) => changeEngine(value));
     }
 
@@ -212,7 +177,9 @@ public class Controller : MonoBehaviour {
         currentAddress = int.Parse(addressList.options[value].text);
         moveController.changeSphereColor(currentAddress, true);
 
-        //初始化参数
+        //设置运动模式为点到点的模式
+        setPointMode(true);
+        //获取参数状态
         getCommandStatus();
         //获取状态寄存器数据
         getEngineerStatus();
@@ -221,7 +188,6 @@ public class Controller : MonoBehaviour {
 
         startImage.SetActive(false);
         endImage.SetActive(true);
-
 
     }
 
@@ -249,15 +215,22 @@ public class Controller : MonoBehaviour {
         updateButtonStatus(false);
     }
 
+    //设置加减速的时间
+    private void setSpeedChangeTime()
+    {
+        setSpeedPlusTime();
+        setSpeedMinusTime();
+    }
+
     //设置加速到指定位置的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
     private void setSpeedPlusTime()
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x06, 0x00, 0x06 };
-        byte[] sp = getParameterValue(inputSpeedPlusTime);
+        byte[] sp = getParameterValue(inputSpeedChangeTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeedPlusTime(currentAddress, int.Parse(inputSpeedPlusTime.text));
+        moveController.setSpeedPlusTime(currentAddress, int.Parse(inputSpeedChangeTime.text));
     }
 
     //设置减速到指定速度的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -265,10 +238,10 @@ public class Controller : MonoBehaviour {
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x06, 0x00, 0x07 };
-        byte[] sp = getParameterValue(inputSpeedMinusTime);
+        byte[] sp = getParameterValue(inputSpeedChangeTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeedMinusTime(currentAddress, int.Parse(inputSpeedMinusTime.text));
+        moveController.setSpeedMinusTime(currentAddress, int.Parse(inputSpeedChangeTime.text));
     }
 
     //设置转速 速度模式：速度值随时生效点到点位置模式：开始运动 IO 线圈寄存器 = OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -282,22 +255,12 @@ public class Controller : MonoBehaviour {
         moveController.setSpeed(currentAddress, int.Parse(inputSpeed.text));
     }
 
-    //设置周期性位置的周期  默认=1，重新上电有效
-    private void setLocationPeriod() {
-        byte addr = addrs[addressList.options[addressList.value].text];
-        byte[] msg = { addr, 0x06, 0x00, 0x0e };
-        byte[] sp = getParameterValue(inputLocationPeriod);
-        byte[] raw = messageManagement.combineArray(msg, sp);
-        handleMsg(raw);
-        moveController.setLocationPeriod(currentAddress, int.Parse(inputLocationPeriod.text));
-    }
-
     //4 5 电机指令脉冲 增量式/绝对式脉冲数）开始运动 IO 线圈寄存器=OFF 或者外部IO（启动信号）光耦不导通时生效
     private void setLocation()
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x10, 0x00, 0x04, 0x00, 0x02, 0x04 };
-        Debug.Log(inputLocation.name + " : " + inputLocation.text);
+        //Debug.Log(inputLocation.name + " : " + inputLocation.text);
         int value = int.Parse(inputLocation.text);
         //基本上四位，因为int对应4byte
         byte[] s = System.BitConverter.GetBytes(value);
@@ -324,43 +287,10 @@ public class Controller : MonoBehaviour {
         moveController.setLocationProperty(currentAddress, int.Parse(inputLocationProperty.text));
     }
 
-    //运动循环命令次数 0-30000 随时生效
-    private void setCycleIndex()
-    {
-        byte addr = addrs[addressList.options[addressList.value].text];
-        byte[] msg = { addr, 0x06, 0x00, 0x08 };
-        byte[] sp = getParameterValue(inputCycleIndex);
-        byte[] raw = messageManagement.combineArray(msg, sp);
-        handleMsg(raw);
-        moveController.setCycleIndex(currentAddress, int.Parse(inputCycleIndex.text));
-    }
-
-    //运动循环等待时间 0-30000（单位根据寄存器12 确定） 随时生效
-    private void setWaitingTime()
-    {
-        byte addr = addrs[addressList.options[addressList.value].text];
-        byte[] msg = { addr, 0x06, 0x00, 0x09 };
-        byte[] sp = getParameterValue(inputWaitingTime);
-        byte[] raw = messageManagement.combineArray(msg, sp);
-        handleMsg(raw);
-        moveController.setWaitingTime(currentAddress, int.Parse(inputWaitingTime.text));
-    }
-
-    //等待时间单位 0：ms 1：s 重新上电有效
-    private void setWaitingTimeUnit()
-    {
-        byte addr = addrs[addressList.options[addressList.value].text];
-        byte[] msg = { addr, 0x06, 0x00, 0x0c };
-        byte[] sp = getParameterValue(inputWaitingTimeUnit);
-        byte[] raw = messageManagement.combineArray(msg, sp);
-        handleMsg(raw);
-        moveController.setWaitingTimeUnit(currentAddress, int.Parse(inputWaitingTimeUnit.text));
-    }
-
     //设置为速度模式
     public void setSpeedMode(bool value) {
         if (value) {
-            Debug.Log("set speed mode");
+            //Debug.Log("set speed mode");
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x01 };
             handleMsg(msg);
@@ -373,7 +303,7 @@ public class Controller : MonoBehaviour {
     public void setLocationMode(bool value)
     {
         if (value) {
-            Debug.Log("set location mode");
+            //Debug.Log("set location mode");
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x02 };
             handleMsg(msg);
@@ -386,7 +316,7 @@ public class Controller : MonoBehaviour {
     public void setPointMode(bool value)
     {
         if (value) {
-            Debug.Log("set point mode");
+            //Debug.Log("set point mode");
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x03 };
             handleMsg(msg);
@@ -397,7 +327,7 @@ public class Controller : MonoBehaviour {
 
     //获取InputFiled输入的值转化为byte数组
     private byte[] getParameterValue(InputField inputFiled) {
-        Debug.Log(inputFiled.name+" : "+ inputFiled.text);
+        //Debug.Log(inputFiled.name+" : "+ inputFiled.text);
         int value = int.Parse(inputFiled.text);
         //基本上四位，因为int对应4byte
         byte[] s = System.BitConverter.GetBytes(value);
@@ -419,45 +349,22 @@ public class Controller : MonoBehaviour {
     public void updateCommandStatus(moveSphere sphere)
     {
         //初始化页面参数
-        inputSpeedPlusTime.text  = sphere.speedPlusTime.ToString();
-        inputSpeedMinusTime.text = sphere.speedMinusTime.ToString();
+        inputSpeedChangeTime.text  = sphere.speedPlusTime.ToString();
         inputSpeed.text = sphere.speed.ToString();
-        inputLocationPeriod.text = sphere.locationPeriod.ToString();
-        inputLocation.text = sphere.location.ToString();
+        inputLocation.text = sphere.originLocation.ToString();
         inputLocationProperty.text = sphere.locationProperty.ToString();
-        inputCycleIndex.text = sphere.cycleIndex.ToString();
-        inputWaitingTime.text = sphere.waitingTime.ToString();
-        inputWaitingTimeUnit.text = sphere.waitingTimeUnit.ToString();
         showMode.text = modes[sphere.mode];
         //更新动画小球参数
-        moveController.setSpeedPlusTime(sphere.address, sphere.speedPlusTime);
-        moveController.setSpeedMinusTime(sphere.address, sphere.speedMinusTime);
+        moveController.setSpeedPlusTime(sphere.address, (int)sphere.speedPlusTime);
+        moveController.setSpeedMinusTime(sphere.address, (int)sphere.speedMinusTime);
         moveController.setSpeed(sphere.address, (int)sphere.speed);
         moveController.setLocationPeriod(sphere.address, sphere.locationPeriod);
         moveController.setLocationProperty(sphere.address, sphere.locationProperty);
-        moveController.setLocation(sphere.address, (int)sphere.location);
+        moveController.setLocation(sphere.address, (int)sphere.originLocation);
         moveController.setCycleIndex(sphere.address, sphere.cycleIndex);
         moveController.setWaitingTime(sphere.address, sphere.waitingTime);
         moveController.setWaitingTimeUnit(sphere.address, sphere.waitingTimeUnit);
         moveController.setMode(currentAddress, sphere.mode);
-        switch (sphere.mode)
-        {
-            case 1:
-                speedMode.isOn = true;
-                locationMode.isOn = false;
-                pointMode.isOn = false;
-                break;
-            case 2:
-                speedMode.isOn = false;
-                locationMode.isOn = true;
-                pointMode.isOn = false;
-                break;
-            case 3:
-                speedMode.isOn = false;
-                locationMode.isOn = false;
-                pointMode.isOn = true;
-                break;
-        }
     }
 
     //更新电机状态

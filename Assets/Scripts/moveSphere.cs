@@ -11,17 +11,19 @@ public class moveSphere{
     //电机编号
     public int address;
     //目标位置
-    public float target;
+    public float targetLocation;
     //零速加速到指定速度的时间 (ms)
-    public int speedPlusTime;
+    public float speedPlusTime;
     //指定速度减速到零速的时间 (ms)
-    public int speedMinusTime;
+    public float speedMinusTime;
     //电机指令速度 (m/s)
     public float speed;
     //周期性位置的周期
     public int locationPeriod;
-    //电机指定位置
-    public float location;
+    //电机原始位置
+    public float originLocation;
+    //电机原始速度
+    public float originSpeed;
     //位置属性
     public int locationProperty;
     //运动循环命令次数
@@ -33,6 +35,13 @@ public class moveSphere{
     //运动模式 1：速度 2：位置 3：点到点
     public int mode;
     //电机当前速度 (m/s)
-    public float currentSpeed;
-
+    public float currentSpeed=0;
+    //停止加速时间 (毫秒时间戳)
+    public double stopAccelerateTime;
+    //开始减速位置（ms）
+    public float startSlowdownPosition;
+    //目标速度
+    public float targetSpeed;
+    //开始加速时间(毫秒时间戳)
+    public double startTime;
 }

@@ -1,6 +1,7 @@
 ﻿using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using System;
 
 public class MoveController : MonoBehaviour {
 
@@ -29,20 +30,38 @@ public class MoveController : MonoBehaviour {
             if (!sphere.run) {
                 continue;
             }
-            //if (sphere.name == "Light_01")
-            //{
-            //    Debug.Log("current speed is  " + sphere.currentSpeed);
-            //}
             if (sphere.mode != 1) {
+                long now = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000;
+                
+                if (now < sphere.stopAccelerateTime)//加速度
+                {
+                    double ratio = (now - sphere.startTime)/(sphere.stopAccelerateTime - sphere.startTime);
+                    sphere.currentSpeed = Mathf.Lerp(sphere.originSpeed, sphere.targetSpeed, float.Parse(ratio.ToString()));
+                }
+                else//减速度
+                {
+                    float ratio = Mathf.Abs(sphere.sphere.transform.position.y - sphere.targetLocation) / Mathf.Abs(sphere.startSlowdownPosition - sphere.targetLocation);
+                    sphere.currentSpeed = Mathf.Lerp(sphere.originSpeed, sphere.targetSpeed,ratio);
+                    /*if (sphere.name == "Light_02")
+                    {
+                        //Debug.Log("ratio is " + ratio);
+                        Debug.Log("ratio is " + ratio);
+                    }*/
+                }
+                /*if (sphere.name == "Light_02")
+                {
+                    //Debug.Log("ratio is " + ratio);
+                    Debug.Log("speed is " + sphere.currentSpeed);
+                }*/
                 if (sphere.speed > 0)//表示target>location
                 {
-                    if (sphere.sphere.transform.position.y >= sphere.target) {
+                    if (sphere.sphere.transform.position.y >= sphere.targetLocation) {
                         sphere.currentSpeed = 0;
                     }
                 }
                 else if (sphere.speed <= 0)
                 {
-                    if (sphere.sphere.transform.position.y <= sphere.target)
+                    if (sphere.sphere.transform.position.y <= sphere.targetLocation)
                     {
                         sphere.currentSpeed = 0;
                     }
@@ -63,7 +82,7 @@ public class MoveController : MonoBehaviour {
     public void setLocation(int num, int pluse)
     {
         float location = (float)(pluse / 200 * PI * 0.04)*5;
-        spheres[num - 1].location = location;
+        spheres[num - 1].originLocation = location;
         spheres[num - 1].sphere.transform.position = new Vector3(spheres[num - 1].sphere.transform.position.x, location, spheres[num - 1].sphere.transform.position.z);
     }
 
@@ -71,33 +90,63 @@ public class MoveController : MonoBehaviour {
     public void setTarget(int num, int pluse)
     {
         float location = (float)(pluse/200 * PI * 0.04)*5;
-        spheres[num - 1].target = location;
+        spheres[num - 1].targetLocation = location;
+        //更新球改变运动状态前的原始状态
+        spheres[num - 1].originLocation = spheres[num - 1].sphere.transform.position.y;
+        spheres[num - 1].originSpeed = spheres[num - 1].currentSpeed;
+        //Debug.Log("set target num is " + num);
+        //Debug.Log("origin Speed is " + spheres[num - 1].originSpeed);
+        //Debug.Log("origin Location is " + spheres[num - 1].originLocation);
         //更新速度
-        if (spheres[num - 1].target > spheres[num - 1].sphere.transform.position.y)
+        if (spheres[num - 1].targetLocation > spheres[num - 1].originLocation)
         {
             spheres[num - 1].speed = spheres[num - 1].speed > 0 ? spheres[num - 1].speed : (-spheres[num - 1].speed);
         }
-        else if (spheres[num - 1].target < spheres[num - 1].sphere.transform.position.y)
+        else if (spheres[num - 1].targetLocation < spheres[num - 1].originLocation)
         {
             spheres[num - 1].speed = spheres[num - 1].speed < 0 ? spheres[num - 1].speed : (-spheres[num - 1].speed);
         }
-        spheres[num - 1].currentSpeed = spheres[num - 1].speed;
-        Debug.Log("run is " + spheres[num-1].run);
-        Debug.Log("speed is "+ spheres[num - 1].currentSpeed);
-        Debug.Log("location is " + spheres[num - 1].sphere.transform.position.y);
-        Debug.Log("target is " + spheres[num - 1].target);
+        //Debug.Log("speedPlusTime is " + spheres[num - 1].speedPlusTime);
+        float accelerate = (spheres[num - 1].speed - spheres[num - 1].originSpeed) / spheres[num - 1].speedPlusTime;
+        //Debug.Log("accelerate is " + accelerate);
+        //计算加速时间
+        float acceleratDistance = spheres[num - 1].originSpeed * spheres[num - 1].speedPlusTime + 0.5f * accelerate * spheres[num - 1].speedPlusTime * spheres[num - 1].speedPlusTime;
+        //Debug.Log("accelerate distance is " + acceleratDistance);
+        //设置停止加速时间和开始减速时间
+        if (Mathf.Abs(acceleratDistance) > Mathf.Abs(spheres[num - 1].targetLocation - spheres[num - 1].originLocation) / 2.0f)
+        {
+            float time = Mathf.Sqrt((spheres[num - 1].targetLocation - spheres[num - 1].originLocation) / accelerate);
+            //Debug.Log("accelerate time is "+time);
+            spheres[num - 1].targetSpeed = spheres[num - 1].originSpeed + accelerate * time;
+            spheres[num - 1].startTime = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000;
+            spheres[num - 1].stopAccelerateTime = spheres[num - 1].startTime + time*1000;
+            spheres[num - 1].startSlowdownPosition = spheres[num - 1].originSpeed * time + 0.5f * accelerate * time * time;
+        }
+        else {
+            spheres[num - 1].targetSpeed = spheres[num - 1].originSpeed + accelerate * spheres[num - 1].speedPlusTime;
+            spheres[num - 1].startTime = (DateTime.Now.ToUniversalTime().Ticks - 621355968000000000) / 10000;
+            spheres[num - 1].stopAccelerateTime = spheres[num - 1].startTime + spheres[num - 1].speedPlusTime*1000;
+            spheres[num - 1].startSlowdownPosition = spheres[num - 1].targetLocation - acceleratDistance;
+        }
+        //Debug.Log("start Time is " + spheres[num - 1].startTime);
+        //Debug.Log("stopAccelerateTime is " + spheres[num - 1].stopAccelerateTime);
+        //Debug.Log("startSlowdownPosition is " + spheres[num - 1].startSlowdownPosition);
+        //Debug.Log("target speed is " + spheres[num - 1].targetSpeed);
+        //Debug.Log("target position is " + spheres[num - 1].targetLocation);
     }
 
     //设置每个球加速时间（ms）
     public void setSpeedPlusTime(int num, int time)
     {
-        spheres[num - 1].speedPlusTime = time;
+        //Debug.Log("set num is "+num);
+        spheres[num - 1].speedPlusTime = float.Parse(time.ToString())/1000;
+        //Debug.Log("speed change time is " + spheres[num - 1].speedPlusTime);
     }
 
     //设置每个球减速时间（ms）
     public void setSpeedMinusTime(int num, int time)
     {
-        spheres[num - 1].speedMinusTime = time;
+        spheres[num - 1].speedMinusTime = float.Parse(time.ToString()) / 1000;
     }
 
     //设置每个球循环次数

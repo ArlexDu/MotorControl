@@ -144,14 +144,14 @@ public class MessageManagement : MonoBehaviour
                 break;
             case 35://获取命令寄存器的状态
                 moveSphere sphere = new moveSphere();
+                sphere.address = System.BitConverter.ToInt16(new byte[] { results[0],0x00}, 0);
                 sphere.mode = getFinalValue(results, new int[] { 4, 3 });
                 sphere.speed = getFinalValue(results, new int[] { 10, 9 });
-                sphere.location = getFinalValue(results, new int[] { 12, 11, 14, 13 });
+                sphere.originLocation = getFinalValue(results, new int[] { 12, 11, 14, 13 });
                 sphere.speedPlusTime = getFinalValue(results, new int[] { 16, 15 });
                 sphere.speedMinusTime = getFinalValue(results, new int[] { 18, 17 });
                 sphere.cycleIndex = getFinalValue(results, new int[] { 20, 19 });
                 sphere.waitingTime = getFinalValue(results, new int[] { 22, 21 });
-                sphere.address = getFinalValue(results, new int[] { 24,23 });
                 sphere.waitingTimeUnit = getFinalValue(results, new int[] { 28, 27 });
                 sphere.locationProperty = getFinalValue(results, new int[] { 30, 29 });
                 sphere.locationPeriod = getFinalValue(results, new int[] { 32, 31 });
@@ -209,7 +209,7 @@ public class MessageManagement : MonoBehaviour
     }
 
 
-            // Update is called once per frame
+    // Update is called once per frame
     void Update()
     {
         if (!portRev.IsAlive) {
