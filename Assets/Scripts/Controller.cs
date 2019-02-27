@@ -34,11 +34,11 @@ public class Controller : MonoBehaviour {
 
     private float interval = 0;
 
-    private bool inited;
-
     public GameObject startImage, endImage;
 
     private int currentAddress=1;
+
+    private int currentMode = 1;
 
     // Use this for initialization
     void Start () {
@@ -120,10 +120,11 @@ public class Controller : MonoBehaviour {
     }
 
     //初始化参数
-    private void init()
+    private void getCommandStatus()
     {
+        //Debug.Log("get init");
         byte addr = addrs[addressList.options[addressList.value].text];
-        byte[] msg = { addr, 0x03, 0x00, 0x03, 0x00, 0x0c };
+        byte[] msg = { addr, 0x03, 0x00, 0x00, 0x00, 0x0f };
         handleMsg(msg);
     }
 
@@ -139,7 +140,7 @@ public class Controller : MonoBehaviour {
     //获得线圈及寄存器状态 点击是否开启
     private void geCoilStatus()
     {
-        Debug.Log("get Coil");
+        //Debug.Log("get Coil");
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x01, 0x00, 0x01, 0x00, 0x01 };
         handleMsg(msg);
@@ -171,14 +172,14 @@ public class Controller : MonoBehaviour {
     // Update is called once per frame
     void Update () {
         //更新电机的状态
-        if (inited) {
-            if (interval > 0.3)
-            {
+        if (interval > 0.3)
+        {
+            if (messageManagement.getCompleteStatus()) {
                 getEngineerStatus();
                 interval = 0;
             }
-            interval += Time.deltaTime;
         }
+        interval += Time.deltaTime;
 
     }
 
@@ -211,16 +212,12 @@ public class Controller : MonoBehaviour {
         currentAddress = int.Parse(addressList.options[value].text);
         moveController.changeSphereColor(currentAddress, true);
 
-        inited = false;
-
         //初始化参数
-        Invoke("init", 0.3f);
-
+        getCommandStatus();
         //获取状态寄存器数据
-        Invoke("getEngineerStatus", 1f);
-
+        getEngineerStatus();
         //获取线圈寄存器状态
-        Invoke("geCoilStatus", 1.3f);
+        geCoilStatus();
 
         startImage.SetActive(false);
         endImage.SetActive(true);
@@ -363,10 +360,12 @@ public class Controller : MonoBehaviour {
     //设置为速度模式
     public void setSpeedMode(bool value) {
         if (value) {
+            Debug.Log("set speed mode");
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x01 };
             handleMsg(msg);
             moveController.setMode(currentAddress,1);
+            currentMode = 1;
         }
     }
     
@@ -374,10 +373,12 @@ public class Controller : MonoBehaviour {
     public void setLocationMode(bool value)
     {
         if (value) {
+            Debug.Log("set location mode");
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x02 };
             handleMsg(msg);
             moveController.setMode(currentAddress, 2);
+            currentMode = 2;
         }
     }
 
@@ -385,10 +386,12 @@ public class Controller : MonoBehaviour {
     public void setPointMode(bool value)
     {
         if (value) {
+            Debug.Log("set point mode");
             byte addr = addrs[addressList.options[addressList.value].text];
             byte[] msg = { addr, 0x06, 0x00, 0x00, 0x00, 0x03 };
             handleMsg(msg);
             moveController.setMode(currentAddress, 3);
+            currentMode = 3;
         }
     }
 
@@ -409,11 +412,11 @@ public class Controller : MonoBehaviour {
     private void handleMsg(byte[] msg) {
         byte[] crc = messageManagement.CRCCalc(msg);
         byte[] data = messageManagement.combineArray(msg, crc);
-        messageManagement.sendMessage(data);
+        messageManagement.addToMessageQueue(data);
     }
 
     //得到电机的初始化状态
-    public void initSphereParameters(moveSphere sphere)
+    public void updateCommandStatus(moveSphere sphere)
     {
         //初始化页面参数
         inputSpeedPlusTime.text  = sphere.speedPlusTime.ToString();
@@ -425,6 +428,7 @@ public class Controller : MonoBehaviour {
         inputCycleIndex.text = sphere.cycleIndex.ToString();
         inputWaitingTime.text = sphere.waitingTime.ToString();
         inputWaitingTimeUnit.text = sphere.waitingTimeUnit.ToString();
+        showMode.text = modes[sphere.mode];
         //更新动画小球参数
         moveController.setSpeedPlusTime(sphere.address, sphere.speedPlusTime);
         moveController.setSpeedMinusTime(sphere.address, sphere.speedMinusTime);
@@ -435,17 +439,9 @@ public class Controller : MonoBehaviour {
         moveController.setCycleIndex(sphere.address, sphere.cycleIndex);
         moveController.setWaitingTime(sphere.address, sphere.waitingTime);
         moveController.setWaitingTimeUnit(sphere.address, sphere.waitingTimeUnit);
-    }
-
-    //更新电机状态
-    public void updateStatusValue(int type, int speed, int location, int mode)
-    {
-        showStatus.text = status[type];
-        showSpeed.text = Convert.ToString(speed);
-        showLocation.text = Convert.ToString(location);
-        showMode.text = modes[mode];
-        moveController.setMode(currentAddress, mode);
-        switch (mode){
+        moveController.setMode(currentAddress, sphere.mode);
+        switch (sphere.mode)
+        {
             case 1:
                 speedMode.isOn = true;
                 locationMode.isOn = false;
@@ -462,6 +458,15 @@ public class Controller : MonoBehaviour {
                 pointMode.isOn = true;
                 break;
         }
+    }
+
+    //更新电机状态
+    public void updateStatusValue(int type, int speed, int location, int mode)
+    {
+        showStatus.text = status[type];
+        showSpeed.text = Convert.ToString(speed);
+        showLocation.text = Convert.ToString(location);
+        showMode.text = modes[mode];
     }
 
     //更新电机状态
@@ -482,7 +487,7 @@ public class Controller : MonoBehaviour {
                 endImage.SetActive(true);
             }
         }
-        
-        inited = true;
+
+        updateButtonStatus(run);
     }
 }

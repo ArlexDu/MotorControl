@@ -20,16 +20,20 @@ public class MessageManagement : MonoBehaviour
     public Controller controller;
     private SerialPort port;
     //  接受线程，处理线程
-    private Thread portRev, portDeal;
+    private Thread portRev, portDeal,portSend;
     private Queue<byte> dataQueue;
+    //指令队列
+    private Queue<byte[]> msgQueue;
     private string outStr = string.Empty;
     private int resultNum = 8;
+    private bool completed;
 
     // Use this for initialization
     void Start()
     {
         Debug.Log("Start");
         dataQueue = new Queue<byte>();
+        msgQueue = new Queue<byte[]>();
         port = new SerialPort(portName, baudrate, parite, dataBits, stopbits);
         //设定等待时间为4ms，若超过4ms则认为是下一帧数据
         port.ReadTimeout = 4;
@@ -44,11 +48,21 @@ public class MessageManagement : MonoBehaviour
             {
                 Debug.Log("串口已经打开");
             }
+            //前台线程和后台线程。这两者的区别就是：
+            //应用程序必须运行完所有的前台线程才可以退出；
+            //而对于后台线程，应用程序则可以不考虑其是否已经运行完毕而直接退出，所有的后台线程在应用程序退出时都会自动结束。
             portRev = new Thread(PortReceivedThread);
             portRev.IsBackground = true;
             portRev.Start();
+
             portDeal = new Thread(DealData);
+            portDeal.IsBackground = true;
+
+            portSend = new Thread(sendMessage);
+            portSend.IsBackground = true;
+            portSend.Start();
             Loom.Initialize();
+            completed = true;
         }
         catch (System.Exception ex)
         {
@@ -86,6 +100,7 @@ public class MessageManagement : MonoBehaviour
                 if (!portDeal.IsAlive)
                 {
                     portDeal = new Thread(DealData);
+                    portDeal.IsBackground = true;
                     portDeal.Start();
                 }
             }
@@ -102,8 +117,9 @@ public class MessageManagement : MonoBehaviour
             byte result = dataQueue.Dequeue();
             results[i] = result;
         }
-        showInfo(results);
-        switch(num){
+        //showInfo(results);
+        completed = true;//串口是一个消息收->发，所以发一个消息必须等到这个消息的反馈才能继续发下一个消息
+        switch (num){
             case 6://获取线圈寄存器的状态
                 byte runbyte = results[3];
                 byte[] addr = new byte[2];
@@ -126,21 +142,22 @@ public class MessageManagement : MonoBehaviour
                     controller.updateStatusValue(currStatus, currSpeed, currLocation, currMode);
                 }, null);
                 break;
-            case 29://获取命令寄存器的状态
+            case 35://获取命令寄存器的状态
                 moveSphere sphere = new moveSphere();
-                sphere.speed = getFinalValue(results, new int[] { 4, 3 });
-                sphere.location = getFinalValue(results, new int[] { 6, 5, 8, 7 });
-                sphere.speedPlusTime = getFinalValue(results, new int[] { 10, 9 });
-                sphere.speedMinusTime = getFinalValue(results, new int[] { 12, 11 });
-                sphere.cycleIndex = getFinalValue(results, new int[] { 14, 13 });
-                sphere.waitingTime = getFinalValue(results, new int[] { 16, 15 });
-                sphere.address = getFinalValue(results, new int[] { 18,17 });
-                sphere.waitingTimeUnit = getFinalValue(results, new int[] { 22, 21 });
-                sphere.locationProperty = getFinalValue(results, new int[] { 24, 23 });
-                sphere.locationPeriod = getFinalValue(results, new int[] { 26, 25 });
+                sphere.mode = getFinalValue(results, new int[] { 4, 3 });
+                sphere.speed = getFinalValue(results, new int[] { 10, 9 });
+                sphere.location = getFinalValue(results, new int[] { 12, 11, 14, 13 });
+                sphere.speedPlusTime = getFinalValue(results, new int[] { 16, 15 });
+                sphere.speedMinusTime = getFinalValue(results, new int[] { 18, 17 });
+                sphere.cycleIndex = getFinalValue(results, new int[] { 20, 19 });
+                sphere.waitingTime = getFinalValue(results, new int[] { 22, 21 });
+                sphere.address = getFinalValue(results, new int[] { 24,23 });
+                sphere.waitingTimeUnit = getFinalValue(results, new int[] { 28, 27 });
+                sphere.locationProperty = getFinalValue(results, new int[] { 30, 29 });
+                sphere.locationPeriod = getFinalValue(results, new int[] { 32, 31 });
                 Loom.QueueOnMainThread((param) =>
                 {
-                    controller.initSphereParameters(sphere);
+                    controller.updateCommandStatus(sphere);
                 }, null);
                 
                 break;
@@ -170,13 +187,24 @@ public class MessageManagement : MonoBehaviour
         return finalValue;
     }
 
+    //将消息加入到消息队列
+    public void addToMessageQueue(byte[] msg) {
+        msgQueue.Enqueue(msg);
+    }
+
     //发送数据 同时设置返回的指令数量 https://blog.csdn.net/yangbingzhou/article/details/39504015
-    public void sendMessage(byte[] data)
+    void sendMessage()
     {
-        if (port.IsOpen)
-        {
-            port.Write(data, 0, data.Length);
-            //showInfo(data);
+        while(msgQueue.Count > 0) {
+            if (completed) {
+                byte[] data = msgQueue.Dequeue();
+                completed = false;
+                if (port.IsOpen)
+                {
+                    port.Write(data, 0, data.Length);
+                    //showInfo(data);
+                }
+            }
         }
     }
 
@@ -189,10 +217,18 @@ public class MessageManagement : MonoBehaviour
             portRev.IsBackground = true;
             portRev.Start();
         }
+        if (!portSend.IsAlive)
+        {
+            portSend = new Thread(sendMessage);
+            portSend.IsBackground = true;
+            portSend.Start();
+        }
     }
 
     void OnApplicationQuit()
     {
+        //清空消息队列
+        msgQueue.Clear();
         Debug.Log("退出！");
         if (portRev.IsAlive)
         {
@@ -201,6 +237,10 @@ public class MessageManagement : MonoBehaviour
         if (portDeal.IsAlive)
         {
             portDeal.Abort();
+        }
+        if (portSend.IsAlive)
+        {
+            portSend.Abort();
         }
         port.Close();
     }
@@ -253,5 +293,10 @@ public class MessageManagement : MonoBehaviour
         crcFinal[1] = (byte)((crc >> 8) & 0xff);
         crcFinal[0] = (byte)(crc & 0xff);
         return crcFinal;
+    }
+
+    //获取当前指令状态
+    public bool getCompleteStatus() {
+        return completed;
     }
 }
