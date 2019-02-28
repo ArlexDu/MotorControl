@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 public class Controller : MonoBehaviour {
 
-    private Button btnSpeedChangeTime, btnSpeed, btnLocation, btnLocationProperty, btnStart, btnEnd;
+    private Button btnSpeedChangeTime, btnSpeed, btnLocation, btnLocationProperty, btnStart, btnEnd, btnSave;
 
     private InputField inputSpeedChangeTime, inputSpeed, inputLocation, inputLocationProperty;
 
@@ -59,6 +59,7 @@ public class Controller : MonoBehaviour {
         //初始化功能按钮
         btnStart = GameObject.Find("start").GetComponent<Button>();
         btnEnd = GameObject.Find("end").GetComponent<Button>();
+        btnSave = GameObject.Find("save").GetComponent<Button>();
 
         //初始化地址字典
         addrs.Add("01", 0x01);
@@ -79,7 +80,7 @@ public class Controller : MonoBehaviour {
         modes.Add(2, "周期位置模式");
         modes.Add(3, "点到点位置模式");
 
-        updateButtonStatus(false);
+        //updateButtonStatus(false);
 
         addressList = GameObject.Find("address").GetComponent<Dropdown>();
         updateDropDownItem();
@@ -127,6 +128,7 @@ public class Controller : MonoBehaviour {
     {
         btnStart.onClick.AddListener(startEngine);
         btnEnd.onClick.AddListener(endEngine);
+        btnSave.onClick.AddListener(saveParameters);
         btnSpeedChangeTime.onClick.AddListener(setSpeedChangeTime);
         btnSpeed.onClick.AddListener(setSpeed);
         btnLocation.onClick.AddListener(setLocation);
@@ -200,7 +202,7 @@ public class Controller : MonoBehaviour {
         moveController.setCoilStatus(currentAddress, true);
         startImage.SetActive(true);
         endImage.SetActive(false);
-        updateButtonStatus(true);
+        //updateButtonStatus(true);
     }
 
     //停止电机
@@ -212,7 +214,16 @@ public class Controller : MonoBehaviour {
         moveController.setCoilStatus(currentAddress, false);
         startImage.SetActive(false);
         endImage.SetActive(true);
-        updateButtonStatus(false);
+        //updateButtonStatus(false);
+    }
+
+    //保存电机参数
+    public void saveParameters()
+    {
+        byte addr = addrs[addressList.options[addressList.value].text];
+        byte[] msg = { addr, 0x06, 0x00, 0x0f, 0x00, 0x01 };
+        handleMsg(msg);
+        //updateButtonStatus(true);
     }
 
     //设置加减速的时间
@@ -395,7 +406,7 @@ public class Controller : MonoBehaviour {
             }
         }
 
-        updateButtonStatus(run);
+        //updateButtonStatus(run);
     }
 
     //读取反馈成功指令更新参数

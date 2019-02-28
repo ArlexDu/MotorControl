@@ -126,12 +126,22 @@ public class WaveDemo : MonoBehaviour {
             StartCoroutine(startEngines(addr, time));
             addr++;
         }
+        //复位到电机1界面
+        StartCoroutine(startEngines(addr, 2 * addr));
     }
 
     private IEnumerator startEngines(int addr, int time)
     {
         yield return new WaitForSeconds(time);
-        address.value = addr;
-        address.onValueChanged.Invoke(addr);
+        if (addr == spheres.Count)
+        {
+            address.value = 0;
+            address.onValueChanged.Invoke(0);
+        }
+        else {
+            address.value = addr;
+            address.onValueChanged.Invoke(addr);
+            controller.startEngine();
+        }
     }
 }
