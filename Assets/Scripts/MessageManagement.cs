@@ -117,19 +117,25 @@ public class MessageManagement : MonoBehaviour
             byte result = dataQueue.Dequeue();
             results[i] = result;
         }
+        //Debug.Log("Return:");
         //showInfo(results);
         completed = true;//串口是一个消息收->发，所以发一个消息必须等到这个消息的反馈才能继续发下一个消息
+        int address = getSingleValue(results[0]);
         switch (num){
             case 6://获取线圈寄存器的状态
                 byte runbyte = results[3];
-                byte[] addr = new byte[2];
-                addr[0] = results[0];
-                addr[1] = 0x00;
-                int address = System.BitConverter.ToInt16(addr, 0);
                 bool run = runbyte == 0x01 ? true : false; 
                 Loom.QueueOnMainThread((param) =>
                 {
                     controller.updateCoilStatus(address,run);
+                }, null);
+                break;
+            case 8://单个寄存器写入
+                int type = getFinalValue(results, new int[] { 3, 2 });
+                int value = getFinalValue(results, new int[] { 5, 4 });
+                Loom.QueueOnMainThread((param) =>
+                {
+                    controller.updateParameterValue(address, type, value);
                 }, null);
                 break;
             case 15://实时分析电机的状态        
@@ -144,7 +150,7 @@ public class MessageManagement : MonoBehaviour
                 break;
             case 35://获取命令寄存器的状态
                 moveSphere sphere = new moveSphere();
-                sphere.address = System.BitConverter.ToInt16(new byte[] { results[0],0x00}, 0);
+                sphere.address = address;
                 sphere.mode = getFinalValue(results, new int[] { 4, 3 });
                 sphere.speed = getFinalValue(results, new int[] { 10, 9 });
                 sphere.originLocation = getFinalValue(results, new int[] { 12, 11, 14, 13 });
@@ -187,6 +193,17 @@ public class MessageManagement : MonoBehaviour
         return finalValue;
     }
 
+    //解析单个参数
+    private int getSingleValue(byte raw)
+    {
+        byte[] b = new byte[2];
+        b[0] = raw;
+        b[1] = 0x00;
+        int value = System.BitConverter.ToInt16(b, 0);
+        //Debug.Log(finalValue);
+        return value;
+    }
+
     //将消息加入到消息队列
     public void addToMessageQueue(byte[] msg) {
         msgQueue.Enqueue(msg);
@@ -202,6 +219,7 @@ public class MessageManagement : MonoBehaviour
                 if (port.IsOpen)
                 {
                     port.Write(data, 0, data.Length);
+                    //Debug.Log("Send:");
                     //showInfo(data);
                 }
             }
@@ -253,7 +271,7 @@ public class MessageManagement : MonoBehaviour
         {
             info = info + b.ToString("X2") + " ";
         }
-        Debug.Log(info);
+        Debug.Log(info);    
     }
 
     //合并数组

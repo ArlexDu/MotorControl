@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using System;
+using System.Threading;
 
 public class MoveController : MonoBehaviour {
 
@@ -48,24 +49,37 @@ public class MoveController : MonoBehaviour {
                         Debug.Log("ratio is " + ratio);
                     }*/
                 }
-                /*if (sphere.name == "Light_02")
+                /*if (sphere.name == "Light_01")
                 {
-                    //Debug.Log("ratio is " + ratio);
-                    Debug.Log("speed is " + sphere.currentSpeed);
+                    Debug.Log("sphere.targetLocation is " + sphere.targetLocation);
                 }*/
+                //Debug.Log("sphere.targetLocation is " + sphere.targetLocation);
                 if (sphere.speed > 0)//表示target>location
                 {
                     if (sphere.sphere.transform.position.y >= sphere.targetLocation) {
+                        //Debug.Log("reset Position1");
                         sphere.currentSpeed = 0;
+                        sphere.sphere.transform.position = new Vector3(sphere.sphere.transform.position.x, sphere.targetLocation, sphere.sphere.transform.position.z);
                     }
                 }
                 else if (sphere.speed <= 0)
                 {
                     if (sphere.sphere.transform.position.y <= sphere.targetLocation)
                     {
+                        //Debug.Log("reset Position2");
                         sphere.currentSpeed = 0;
+                        sphere.sphere.transform.position = new Vector3(sphere.sphere.transform.position.x, sphere.targetLocation, sphere.sphere.transform.position.z);
                     }
                 }
+
+                if (sphere.stopAccelerateTime!=0 && now > sphere.stopAccelerateTime && Mathf.Abs(sphere.currentSpeed) <= 0.0001)
+                {
+                    //Debug.Log("reset Position3");
+                    sphere.currentSpeed = 0;
+                    sphere.sphere.transform.position = new Vector3(sphere.sphere.transform.position.x, sphere.targetLocation, sphere.sphere.transform.position.z);
+                }
+                //Debug.Log("address is "+sphere.address);
+
             }
             sphere.sphere.transform.position = new Vector3(sphere.sphere.transform.position.x, sphere.sphere.transform.position.y + sphere.currentSpeed * Time.deltaTime, sphere.sphere.transform.position.z);
         }
@@ -81,15 +95,31 @@ public class MoveController : MonoBehaviour {
     //设置每个球的初始位置
     public void setLocation(int num, int pluse)
     {
+        //Debug.Log("set Location");
         float location = (float)(pluse / 200 * PI * 0.04)*5;
         spheres[num - 1].originLocation = location;
+        spheres[num - 1].targetLocation = location;
         spheres[num - 1].sphere.transform.position = new Vector3(spheres[num - 1].sphere.transform.position.x, location, spheres[num - 1].sphere.transform.position.z);
     }
 
+    //设置计划目标位置，等获取串口反馈数据后更新为正式目标位置
+    public void setPrepareTarget(int num, int pluse) {
+        /*if (spheres[num - 1].name == "Light_01")
+        {
+            Debug.Log("set prepareTarget " + pluse);
+        }*/
+        spheres[num - 1].prepareLocation = pluse;
+    }
+
     //设置每个球的运动目标位置
-    public void setTarget(int num, int pluse)
+    public void setTarget(int num)
     {
-        float location = (float)(pluse/200 * PI * 0.04)*5;
+        int pluse = spheres[num - 1].prepareLocation;
+        float location = (float)(pluse / 200 * PI * 0.04) * 5;
+        /*if (spheres[num - 1].name == "Light_01")
+        {
+            Debug.Log("set Target "+location);
+        }*/
         spheres[num - 1].targetLocation = location;
         //更新球改变运动状态前的原始状态
         spheres[num - 1].originLocation = spheres[num - 1].sphere.transform.position.y;
@@ -138,7 +168,6 @@ public class MoveController : MonoBehaviour {
     //设置每个球加速时间（ms）
     public void setSpeedPlusTime(int num, int time)
     {
-        //Debug.Log("set num is "+num);
         spheres[num - 1].speedPlusTime = float.Parse(time.ToString())/1000;
         //Debug.Log("speed change time is " + spheres[num - 1].speedPlusTime);
     }
@@ -184,6 +213,12 @@ public class MoveController : MonoBehaviour {
         spheres[num - 1].mode = mode;
     }
 
+    //设置当前的地址
+    public void setAddress(int num, int addr)
+    {
+        spheres[num - 1].address = addr;
+    }
+
     //设置每个球周期性位置的周期
     public void setCoilStatus(int num, bool run)
     {
@@ -199,5 +234,16 @@ public class MoveController : MonoBehaviour {
         else {
             spheres[num - 1].sphere.gameObject.GetComponent<Renderer>().material.color = Color.white;
         }
+    }
+    //获取灯对象
+    public int getLocation(int num)
+    {
+        return spheres[num-1].prepareLocation;
+    }
+
+    //获取灯对象
+    public List<moveSphere> getSpheres()
+    {
+        return spheres;
     }
 }

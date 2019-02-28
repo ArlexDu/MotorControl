@@ -3,15 +3,21 @@ using System.Collections.Generic;
 using UnityEngine;
 
 public class moveSphere{
-    public moveSphere(){}
+    public moveSphere(){
+        targetLocation = 0;
+        prepareLocation = 0;
+        changeDirection = true;
+    }
     public string name;
     public Transform sphere;
     //是否开机
     public bool run;
     //电机编号
     public int address;
-    //目标位置
-    public float targetLocation;
+    //计划目标位置
+    public float targetLocation = 0;
+    //目标位置(脉冲数)
+    public int prepareLocation = 0;
     //零速加速到指定速度的时间 (ms)
     public float speedPlusTime;
     //指定速度减速到零速的时间 (ms)
@@ -44,4 +50,6 @@ public class moveSphere{
     public float targetSpeed;
     //开始加速时间(毫秒时间戳)
     public double startTime;
+    //判断是否变向
+    public bool changeDirection;
 }

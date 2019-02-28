@@ -8,7 +8,7 @@ using UnityEngine.UI;
 
 public class Controller : MonoBehaviour {
 
-    private Button btnSpeedChangeTime, btnSpeed, btnLocation, btnLocationProperty, btnStart, btnEnd, btnSave;
+    private Button btnSpeedChangeTime, btnSpeed, btnLocation, btnLocationProperty, btnStart, btnEnd;
 
     private InputField inputSpeedChangeTime, inputSpeed, inputLocation, inputLocationProperty;
 
@@ -59,7 +59,6 @@ public class Controller : MonoBehaviour {
         //初始化功能按钮
         btnStart = GameObject.Find("start").GetComponent<Button>();
         btnEnd = GameObject.Find("end").GetComponent<Button>();
-        btnSave = GameObject.Find("save").GetComponent<Button>();
 
         //初始化地址字典
         addrs.Add("01", 0x01);
@@ -94,6 +93,7 @@ public class Controller : MonoBehaviour {
         btnLocation.interactable = status;
         btnLocationProperty.interactable = status;
     }
+
 
     //初始化参数
     private void getCommandStatus()
@@ -192,7 +192,7 @@ public class Controller : MonoBehaviour {
     }
 
     //启动电机
-    private void startEngine()
+    public void startEngine()
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x05, 0x00, 0x01, 0xff, 0x00 };
@@ -204,7 +204,7 @@ public class Controller : MonoBehaviour {
     }
 
     //停止电机
-    private void endEngine()
+    public void endEngine()
     {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x05, 0x00, 0x01, 0x00, 0x00 };
@@ -230,7 +230,6 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeedChangeTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeedPlusTime(currentAddress, int.Parse(inputSpeedChangeTime.text));
     }
 
     //设置减速到指定速度的时间 加减速时间在开始运动 IO 线圈寄存器=OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -241,7 +240,6 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeedChangeTime);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeedMinusTime(currentAddress, int.Parse(inputSpeedChangeTime.text));
     }
 
     //设置转速 速度模式：速度值随时生效点到点位置模式：开始运动 IO 线圈寄存器 = OFF 或者外部 IO（启动信号）光耦不导通时生效
@@ -252,17 +250,15 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputSpeed);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setSpeed(currentAddress, int.Parse(inputSpeed.text));
     }
 
     //4 5 电机指令脉冲 增量式/绝对式脉冲数）开始运动 IO 线圈寄存器=OFF 或者外部IO（启动信号）光耦不导通时生效
-    private void setLocation()
-    {
+    public void setLocation() {
         byte addr = addrs[addressList.options[addressList.value].text];
         byte[] msg = { addr, 0x10, 0x00, 0x04, 0x00, 0x02, 0x04 };
         //Debug.Log(inputLocation.name + " : " + inputLocation.text);
-        int value = int.Parse(inputLocation.text);
         //基本上四位，因为int对应4byte
+        int value = int.Parse(inputLocation.text);
         byte[] s = System.BitConverter.GetBytes(value);
         Array.Reverse(s);
         byte[] sp = new byte[4];
@@ -272,7 +268,7 @@ public class Controller : MonoBehaviour {
         sp[3] = s[1];
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setTarget(currentAddress, int.Parse(inputLocation.text));
+        moveController.setPrepareTarget(currentAddress, int.Parse(inputLocation.text));
     }
 
 
@@ -284,7 +280,7 @@ public class Controller : MonoBehaviour {
         byte[] sp = getParameterValue(inputLocationProperty);
         byte[] raw = messageManagement.combineArray(msg, sp);
         handleMsg(raw);
-        moveController.setLocationProperty(currentAddress, int.Parse(inputLocationProperty.text));
+        //moveController.setLocationProperty(currentAddress, int.Parse(inputLocationProperty.text));
     }
 
     //设置为速度模式
@@ -351,7 +347,9 @@ public class Controller : MonoBehaviour {
         //初始化页面参数
         inputSpeedChangeTime.text  = sphere.speedPlusTime.ToString();
         inputSpeed.text = sphere.speed.ToString();
+        //int prepareLocation = moveController.getLocation(sphere.address);
         inputLocation.text = sphere.originLocation.ToString();
+        moveController.setLocation(sphere.address, (int)sphere.originLocation);
         inputLocationProperty.text = sphere.locationProperty.ToString();
         showMode.text = modes[sphere.mode];
         //更新动画小球参数
@@ -360,11 +358,13 @@ public class Controller : MonoBehaviour {
         moveController.setSpeed(sphere.address, (int)sphere.speed);
         moveController.setLocationPeriod(sphere.address, sphere.locationPeriod);
         moveController.setLocationProperty(sphere.address, sphere.locationProperty);
-        moveController.setLocation(sphere.address, (int)sphere.originLocation);
+        //moveController.setLocation(sphere.address, (int)sphere.originLocation);
+        //moveController.setTarget(sphere.address, (int)sphere.originLocation);
         moveController.setCycleIndex(sphere.address, sphere.cycleIndex);
         moveController.setWaitingTime(sphere.address, sphere.waitingTime);
         moveController.setWaitingTimeUnit(sphere.address, sphere.waitingTimeUnit);
         moveController.setMode(currentAddress, sphere.mode);
+        moveController.setAddress(currentAddress, currentAddress);
     }
 
     //更新电机状态
@@ -396,5 +396,50 @@ public class Controller : MonoBehaviour {
         }
 
         updateButtonStatus(run);
+    }
+
+    //读取反馈成功指令更新参数
+    public void updateParameterValue(int addr,int type, int value)
+    {
+        switch (type) {
+            case 3://更新速度
+                moveController.setSpeed(addr, value);
+                inputSpeed.text = value.ToString();
+                break;
+            case 4://更新位置
+                moveController.setTarget(addr);
+                inputLocation.text = moveController.getLocation(addr).ToString();
+                break;
+            case 6://更新加速时间
+                moveController.setSpeedPlusTime(addr, value);
+                inputSpeedChangeTime.text = value.ToString();
+                break;
+            case 7://更新减速时间
+                moveController.setSpeedMinusTime(addr, value);
+                break;
+            case 13://更新位置属性
+                moveController.setLocationProperty(addr, value);
+                inputLocationProperty.text = value.ToString();
+                break;        
+        }
+    }
+
+    //4 5 电机指令脉冲 增量式/绝对式脉冲数）开始运动 IO 线圈寄存器=OFF 或者外部IO（启动信号）光耦不导通时生效
+    public void updateLocation(int address,int value)
+    {
+        byte addr = addrs[addressList.options[address].text];
+        byte[] msg = { addr, 0x10, 0x00, 0x04, 0x00, 0x02, 0x04 };
+        //Debug.Log(inputLocation.name + " : " + inputLocation.text);
+        //基本上四位，因为int对应4byte
+        byte[] s = System.BitConverter.GetBytes(value);
+        Array.Reverse(s);
+        byte[] sp = new byte[4];
+        sp[0] = s[2];
+        sp[1] = s[3];
+        sp[2] = s[0];
+        sp[3] = s[1];
+        byte[] raw = messageManagement.combineArray(msg, sp);
+        handleMsg(raw);
+        moveController.setPrepareTarget((address+1), value);
     }
 }
